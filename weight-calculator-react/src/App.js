@@ -16,7 +16,16 @@ import {
 } from './utils/constants';
 import { dataServiceFactory } from './services/dataServiceFactory';
 import { userService } from './services/userService';
+import ErrorProvider from './context/ErrorContext';
+import { 
+  GlobalErrorBoundary, 
+  DataServiceErrorBoundary, 
+  FeatureErrorBoundary, 
+  UserSelectorErrorBoundary 
+} from './components/ErrorBoundary';
+import ErrorTestComponent from './components/ErrorTest/ErrorTestComponent';
 import './App.css';
+import './components/ErrorBoundary/ErrorBoundary.css';
 
 const WeightCalculator = () => {
   // Calculator state
@@ -138,7 +147,7 @@ const WeightCalculator = () => {
     };
 
     initializeUser();
-  }, []);
+  }, [initializeDataService]);
 
   // Update document class and save preferences when theme changes
   useEffect(() => {
@@ -562,129 +571,154 @@ const WeightCalculator = () => {
       {/* Tab Content */}
       <div className="tab-content" data-active-tab={activeTab}>
         {activeTab === 'calculator' && (
-          <div className="calculator-tab">
-            <form onSubmit={handleSubmit} className="calculator-form">
-              <div className="input-group">
-                <label htmlFor="calculator-barbell-select">
-                  Select Barbell:
-                </label>
-                <select 
-                  id="calculator-barbell-select" 
-                  value={selectedBarbell.weight} 
-                  onChange={(e) => handleBarbellChange(BARBELL_OPTIONS[unit].find(b => b.weight === parseFloat(e.target.value)))}
-                  className="barbell-select"
-                >
-                  {BARBELL_OPTIONS[unit].map(barbell => (
-                    <option key={barbell.weight} value={barbell.weight}>
-                      {barbell.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="input-group">
-                <label htmlFor="calculator-weight">
-                  Enter desired total weight (including {formatWeight(selectedBarbell.weight, unit)} {unit} barbell):
-                </label>
-                <div className="input-with-controls">
-                  <button 
-                    type="button" 
-                    className="increment-btn decrement" 
-                    onClick={decrementWeight}
-                    aria-label={`Decrease weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-                    title={`Decrease by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
+          <FeatureErrorBoundary featureName="Plate Calculator">
+            <div className="calculator-tab">
+              <form onSubmit={handleSubmit} className="calculator-form">
+                <div className="input-group">
+                  <label htmlFor="calculator-barbell-select">
+                    Select Barbell:
+                  </label>
+                  <select 
+                    id="calculator-barbell-select" 
+                    value={selectedBarbell.weight} 
+                    onChange={(e) => handleBarbellChange(BARBELL_OPTIONS[unit].find(b => b.weight === parseFloat(e.target.value)))}
+                    className="barbell-select"
                   >
-                    −
-                  </button>
-                  <input
-                    type="text"
-                    id="calculator-weight"
-                    value={targetWeight}
-                    onChange={(e) => setTargetWeight(e.target.value)}
-                    placeholder={unit === 'lbs' ? 'e.g., 135 or 185.5' : 'e.g., 60 or 80.5'}
-                    className={error ? 'error' : ''}
-                    onTouchStart={handleTouchStart}
-                    onTouchEnd={handleTouchEnd}
-                  />
-                  <button 
-                    type="button" 
-                    className="increment-btn increment" 
-                    onClick={incrementWeight}
-                    aria-label={`Increase weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-                    title={`Increase by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-                  >
-                    +
-                  </button>
+                    {BARBELL_OPTIONS[unit].map(barbell => (
+                      <option key={barbell.weight} value={barbell.weight}>
+                        {barbell.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                {error && <p className="error-message">{error}</p>}
-              </div>
-              <button type="submit" className="calculate-btn">Calculate Plates</button>
-            </form>
-
-            {result && <ResultDisplay result={result} title="Current Result" />}
-
-            {previousResult && (
-              <div className="previous-result">
-                <button 
-                  className="toggle-previous"
-                  onClick={() => setShowPrevious(!showPrevious)}
-                >
-                  {showPrevious ? '▼' : '▶'} Previous Result
-                </button>
-                
-                {showPrevious && (
-                  <div className="previous-result-content">
-                    <ResultDisplay result={previousResult} title="Previous Result" />
+                <div className="input-group">
+                  <label htmlFor="calculator-weight">
+                    Enter desired total weight (including {formatWeight(selectedBarbell.weight, unit)} {unit} barbell):
+                  </label>
+                  <div className="input-with-controls">
+                    <button 
+                      type="button" 
+                      className="increment-btn decrement" 
+                      onClick={decrementWeight}
+                      aria-label={`Decrease weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
+                      title={`Decrease by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="text"
+                      id="calculator-weight"
+                      value={targetWeight}
+                      onChange={(e) => setTargetWeight(e.target.value)}
+                      placeholder={unit === 'lbs' ? 'e.g., 135 or 185.5' : 'e.g., 60 or 80.5'}
+                      className={error ? 'error' : ''}
+                      onTouchStart={handleTouchStart}
+                      onTouchEnd={handleTouchEnd}
+                    />
+                    <button 
+                      type="button" 
+                      className="increment-btn increment" 
+                      onClick={incrementWeight}
+                      aria-label={`Increase weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
+                      title={`Increase by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
+                    >
+                      +
+                    </button>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                  {error && <p className="error-message">{error}</p>}
+                </div>
+                <button type="submit" className="calculate-btn">Calculate Plates</button>
+              </form>
+
+              {result && <ResultDisplay result={result} title="Current Result" />}
+
+              {previousResult && (
+                <div className="previous-result">
+                  <button 
+                    className="toggle-previous"
+                    onClick={() => setShowPrevious(!showPrevious)}
+                  >
+                    {showPrevious ? '▼' : '▶'} Previous Result
+                  </button>
+                  
+                  {showPrevious && (
+                    <div className="previous-result-content">
+                      <ResultDisplay result={previousResult} title="Previous Result" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </FeatureErrorBoundary>
         )}
 
         {activeTab === 'logger' && (
-          <div className="logger-tab">
-            <WorkoutLoggerForm 
-              workoutForm={workoutForm}
-              onFormSubmit={handleWorkoutSubmit}
-              onFormUpdate={updateWorkoutForm}
-              onIncrementField={incrementWorkoutField}
-              onDecrementField={decrementWorkoutField}
-              unit={unit}
-              targetWeight={targetWeight}
-              selectedBarbell={selectedBarbell}
-            />
-            <WorkoutHistory 
-              workoutHistory={workoutHistory}
-              showHistory={showHistory}
-              onToggleHistory={() => setShowHistory(!showHistory)}
-            />
-          </div>
+          <FeatureErrorBoundary featureName="Workout Logger">
+            <div className="logger-tab">
+              <WorkoutLoggerForm 
+                workoutForm={workoutForm}
+                onFormSubmit={handleWorkoutSubmit}
+                onFormUpdate={updateWorkoutForm}
+                onIncrementField={incrementWorkoutField}
+                onDecrementField={decrementWorkoutField}
+                unit={unit}
+                targetWeight={targetWeight}
+                selectedBarbell={selectedBarbell}
+              />
+              <WorkoutHistory 
+                workoutHistory={workoutHistory}
+                showHistory={showHistory}
+                onToggleHistory={() => setShowHistory(!showHistory)}
+              />
+            </div>
+          </FeatureErrorBoundary>
         )}
 
         {activeTab === 'data' && (
-          <div className="data-tab">
-            <DataManager onDataChange={handleDataChange} />
-          </div>
+          <FeatureErrorBoundary featureName="Data Manager">
+            <div className="data-tab">
+              <DataManager onDataChange={handleDataChange} />
+              {process.env.NODE_ENV === 'development' && (
+                <div style={{ marginTop: '20px', borderTop: '2px solid #ddd', paddingTop: '20px' }}>
+                  <h3>🔧 Development Tools</h3>
+                  <ErrorTestComponent />
+                </div>
+              )}
+            </div>
+          </FeatureErrorBoundary>
         )}
       </div>
 
       {/* User Selection Modal */}
       {showUserSelector && (
-        <UserSelector
-          onUserSelect={handleUserSelect}
-          onClose={handleCloseUserSelector}
-          currentUser={currentUser}
-        />
+        <UserSelectorErrorBoundary>
+          <UserSelector
+            onUserSelect={handleUserSelect}
+            onClose={handleCloseUserSelector}
+            currentUser={currentUser}
+          />
+        </UserSelectorErrorBoundary>
       )}
     </div>
   );
 };
 
 function App() {
+  const handleGlobalError = (error, errorInfo, errorId) => {
+    console.error('Global error caught:', { error, errorInfo, errorId });
+    // Here you could send to external error reporting service
+  };
+
   return (
-    <div className="App">
-      <WeightCalculator />
-    </div>
+    <ErrorProvider>
+      <GlobalErrorBoundary onError={handleGlobalError}>
+        <DataServiceErrorBoundary>
+          <div className="App">
+            <WeightCalculator />
+          </div>
+        </DataServiceErrorBoundary>
+      </GlobalErrorBoundary>
+    </ErrorProvider>
   );
 }
 

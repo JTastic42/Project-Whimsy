@@ -80,14 +80,21 @@ const WorkoutLoggerForm = React.memo(({
                 −
               </button>
               <input
-                type="number"
+                type="text"
                 id="logger-sets"
                 value={workoutForm.sets}
-                onChange={(e) => onFormUpdate('sets', e.target.value)}
-                min="1"
-                max="20"
+                onChange={(e) => {
+                  // Only allow numeric input
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 20)) {
+                    onFormUpdate('sets', value);
+                  }
+                }}
                 className="workout-input"
                 required
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Sets"
               />
               <button 
                 type="button" 
@@ -111,14 +118,21 @@ const WorkoutLoggerForm = React.memo(({
                 −
               </button>
               <input
-                type="number"
+                type="text"
                 id="logger-reps"
                 value={workoutForm.reps}
-                onChange={(e) => onFormUpdate('reps', e.target.value)}
-                min="1"
-                max="50"
+                onChange={(e) => {
+                  // Only allow numeric input
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 50)) {
+                    onFormUpdate('reps', value);
+                  }
+                }}
                 className="workout-input"
                 required
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Reps"
               />
               <button 
                 type="button" 

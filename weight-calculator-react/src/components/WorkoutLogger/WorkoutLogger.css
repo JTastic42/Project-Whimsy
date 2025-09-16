@@ -38,6 +38,7 @@
   color: var(--text-primary);
   transition: all 0.3s ease;
   box-sizing: border-box;
+  min-height: 48px; /* Match increment button height */
 }
 
 /* Override for workout inputs inside input-with-controls */
@@ -56,6 +57,33 @@
 
 .workout-input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* Improve mobile touch targets for all inputs */
+@media (max-width: 768px) {
+  .workout-input {
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: manipulation;
+    /* Ensure proper iOS input behavior */
+    -webkit-touch-callout: default;
+    -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+    /* Prevent iOS input zoom */
+    font-size: 16px !important;
+    /* Force consistent height on iOS */
+    height: 48px;
+    min-height: 48px !important;
+    /* Better iOS touch handling */
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 8px;
+  }
+  
+  /* Improve input containers on mobile */
+  .input-with-controls {
+    gap: 12px; /* Larger gap for easier touch */
+    align-items: stretch; /* Ensure consistent height */
+  }
 }
 
 .workout-select:focus,
@@ -118,11 +146,26 @@
     flex-direction: row;
   }
   
+  /* Improve touch targets for increment buttons on mobile */
+  .input-with-controls .increment-btn {
+    min-width: 48px;
+    min-height: 48px;
+    touch-action: manipulation;
+  }
+  
+  /* Ensure inputs have proper touch targets */
+  .input-with-controls .workout-input {
+    min-height: 48px;
+    padding: 12px 8px;
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+  
   .workout-select,
   .workout-input,
   .workout-textarea {
-    font-size: 16px;
-    padding: 14px 16px;
+    font-size: 16px; /* Prevent iOS zoom */
+    padding: 12px 16px; /* Keep consistent with desktop */
+    min-height: 48px; /* Ensure consistent height */
   }
   
   .log-workout-btn {

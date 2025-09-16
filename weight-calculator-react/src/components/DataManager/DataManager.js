@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { dataServiceFactory } from '../../services/dataServiceFactory';
+import { useAsyncError } from '../../hooks/useAsyncError';
 import './DataManager.css';
 
 const DataManager = React.memo(({ onDataChange }) => {
@@ -8,6 +9,7 @@ const DataManager = React.memo(({ onDataChange }) => {
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const asyncError = useAsyncError();
 
   const handleExport = async () => {
     try {
@@ -32,6 +34,10 @@ const DataManager = React.memo(({ onDataChange }) => {
     } catch (error) {
       console.error('Export failed:', error);
       setImportError('Failed to export data: ' + error.message);
+      // For critical errors that should trigger error boundary
+      if (error.message.includes('quota') || error.message.includes('storage')) {
+        asyncError(error, 'Data Export - Storage Error');
+      }
     } finally {
       setIsExporting(false);
     }
