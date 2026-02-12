@@ -13,7 +13,8 @@ import {
   createDefaultSettings,
   DATA_SCHEMA_VERSION,
   DataValidators,
-  DataTransformers
+  DataTransformers,
+  WORKOUT_TYPES
 } from './dataService.js';
 
 export class LocalStorageService extends DataService {
@@ -399,6 +400,46 @@ export class LocalStorageService extends DataService {
     }
   }
 
+  // Workout Template Operations
+  async getTemplates() {
+    const templates = this._getItem(STORAGE_KEYS.WORKOUT_TEMPLATES, []);
+    return Array.isArray(templates) ? templates : [];
+  }
+
+  async saveTemplate(template) {
+    try {
+      const templates = await this.getTemplates();
+      const id = template.id || `tpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const normalized = { ...template, id, updatedAt: new Date().toISOString() };
+      const idx = templates.findIndex(t => t.id === id);
+      if (idx >= 0) {
+        templates[idx] = normalized;
+      } else {
+        templates.push(normalized);
+      }
+      this._setItem(STORAGE_KEYS.WORKOUT_TEMPLATES, templates);
+      return normalized;
+    } catch (error) {
+      console.error('Error saving template:', error);
+      throw error;
+    }
+  }
+
+  async deleteTemplate(templateId) {
+    try {
+      const templates = await this.getTemplates();
+      const filtered = templates.filter(t => t.id !== templateId);
+      if (filtered.length === templates.length) {
+        throw new Error(`Template with ID ${templateId} not found`);
+      }
+      this._setItem(STORAGE_KEYS.WORKOUT_TEMPLATES, filtered);
+      return true;
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      throw error;
+    }
+  }
+
   async clearAllData() {
     try {
       Object.values(STORAGE_KEYS).forEach(key => {
@@ -413,12 +454,29 @@ export class LocalStorageService extends DataService {
 
   // Migration and Versioning
   async getDataVersion() {
-    return this._getItem(STORAGE_KEYS.DATA_VERSION, DATA_SCHEMA_VERSION);
+    return this._getItem(STORAGE_KEYS.DATA_VERSION, '1.0.0');
   }
 
   async migrateData(fromVersion, toVersion) {
-    // Future: Add migration logic for schema changes
-    console.log(`Migration from ${fromVersion} to ${toVersion} not yet implemented`);
+    console.log(`Migrating from ${fromVersion} to ${toVersion}`);
+
+    if (fromVersion === '1.0.0' && toVersion === DATA_SCHEMA_VERSION) {
+      const workouts = this._getItem(STORAGE_KEYS.WORKOUT_HISTORY, []);
+      const existingIds = new Set();
+      const migrated = [];
+      for (const w of workouts) {
+        try {
+          const normalized = DataTransformers.normalizeWorkout({ ...w, type: w.type || WORKOUT_TYPES.WEIGHTLIFTING }, existingIds);
+          DataValidators.workout(normalized);
+          migrated.push(normalized);
+          existingIds.add(normalized.id);
+        } catch (err) {
+          console.warn('Skipping invalid workout during migration:', w, err);
+        }
+      }
+      this._setItem(STORAGE_KEYS.WORKOUT_HISTORY, migrated);
+    }
+
     this._setItem(STORAGE_KEYS.DATA_VERSION, toVersion);
     return true;
   }

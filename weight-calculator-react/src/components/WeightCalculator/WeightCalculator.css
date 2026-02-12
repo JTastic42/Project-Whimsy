@@ -1,0 +1,113 @@
+.weight-calculator-inline {
+  padding: 0;
+}
+
+.weight-calculator-inline.compact .calculator-form-inline {
+  padding: 16px;
+}
+
+.calculator-form-inline {
+  background: var(--bg-card);
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.calculator-form-inline .input-group {
+  margin-bottom: 16px;
+}
+
+.calculator-form-inline .input-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.calculator-form-inline .barbell-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 16px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.calculator-form-inline .input-with-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calculator-form-inline .increment-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  font-size: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--gradient-secondary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calculator-form-inline .increment-btn.increment {
+  background: var(--gradient-primary);
+}
+
+.calculator-form-inline .input-with-controls input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 18px;
+  text-align: center;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.calculator-form-inline .calc-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.calculator-form-inline .calculate-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--gradient-primary);
+  color: white;
+}
+
+.calculator-form-inline .unit-toggle-btn {
+  padding: 12px 20px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.weight-calculator-inline .result-container {
+  margin-top: 20px;
+}
+
+.weight-calculator-inline .error-message {
+  color: var(--error-color);
+  font-size: 14px;
+  margin-top: 6px;
+}

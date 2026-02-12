@@ -1,0 +1,92 @@
+.rest-timer {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 16px;
+  margin: 12px 0;
+}
+
+.rest-timer-display {
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rest-timer-value {
+  color: var(--text-primary);
+}
+
+.rest-timer-done {
+  color: var(--success-color);
+  margin-left: 8px;
+}
+
+.rest-timer-presets {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.rest-timer-preset-btn {
+  padding: 8px 14px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.rest-timer-preset-btn:hover:not(:disabled) {
+  border-color: var(--info-color);
+  background: rgba(52, 152, 219, 0.1);
+}
+
+.rest-timer-preset-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.rest-timer-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.rest-timer-start,
+.rest-timer-pause,
+.rest-timer-reset {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rest-timer-start {
+  background: var(--gradient-primary);
+  color: white;
+}
+
+.rest-timer-pause {
+  background: var(--warning-color);
+  color: white;
+}
+
+.rest-timer-reset {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 2px solid var(--border-color);
+}
+
+.rest-timer-start:hover,
+.rest-timer-pause:hover,
+.rest-timer-reset:hover {
+  transform: translateY(-1px);
+}

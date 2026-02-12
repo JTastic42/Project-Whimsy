@@ -24,19 +24,24 @@ const ResultDisplay = React.memo(({ result, title }) => {
       <div className="weight-breakdown">
         <p><strong>Barbell Weight:</strong> {formatWeight(result.barbellWeight, unitLabel)} {unitLabel}</p>
         <p><strong>Plate Weight:</strong> {formatWeight(result.plateWeight, unitLabel)} {unitLabel}</p>
-        <p><strong>Total Plates Needed:</strong> {result.totalPlates}</p>
+        <p><strong>Total Plates (both sides):</strong> {result.totalPlates}</p>
       </div>
 
       {result.totalPlates > 0 ? (
         <div className="plate-breakdown">
-          <h4>Plate Breakdown:</h4>
+          <h4>Plate Breakdown (each side of bar):</h4>
           <ul>
-            {Object.entries(result.plateBreakdown).map(([weight, count]) => {
-              if (count > 0) {
-                const totalWeight = parseFloat(weight) * count;
+            {Object.entries(result.plateBreakdownPerSide || result.plateBreakdown)
+              .sort(([a], [b]) => parseFloat(b) - parseFloat(a))
+              .map(([weight, count]) => {
+              const perSide = result.plateBreakdownPerSide ? count : Math.floor((result.plateBreakdown?.[weight] ?? 0) / 2);
+              if (perSide > 0) {
+                const weightNum = parseFloat(weight);
+                const totalPerSide = weightNum * perSide;
+                const total = (result.plateBreakdown?.[weight] ?? perSide * 2);
                 return (
                   <li key={weight}>
-                    {formatWeight(parseFloat(weight), unitLabel)} {unitLabel} plates: {count} × {formatWeight(parseFloat(weight), unitLabel)} = {formatWeight(totalWeight, unitLabel)} {unitLabel}
+                    {formatWeight(weightNum, unitLabel)} {unitLabel}: <strong>{perSide} per side</strong> ({total} total) = {formatWeight(totalPerSide, unitLabel)} {unitLabel} per side
                   </li>
                 );
               }

@@ -24,15 +24,32 @@ export const WEIGHT_INCREMENT_KG = 1.25;
 export const SWIPE_THRESHOLD = 50;
 export const HAPTIC_DURATION = 50;
 
-// Exercise options for workout logger
-export const EXERCISE_OPTIONS = [
+// 10 most common lifts
+export const WEIGHTLIFTING_EXERCISES = [
+  'Squats',
+  'Lunges',
+  'Bicep Curls',
+  'Pull-ups',
   'Bench Press',
-  'Squat',
   'Deadlift',
   'Overhead Press',
   'Barbell Row',
-  'Incline Bench Press',
-  'Romanian Deadlift',
-  'Front Squat',
-  'Other'
+  'Leg Press',
+  'Calf Raises'
 ];
+
+// Legacy alias
+export const EXERCISE_OPTIONS = WEIGHTLIFTING_EXERCISES;
+
+export const RUNNING_WORKOUT_TYPES = [
+  'Speed Session',
+  'Strength Session',
+  'Tempo Run',
+  'Long Run'
+];
+
+export const CYCLING_TERRAINS = ['Road', 'Trail'];
+
+export const DISTANCE_UNIT_OPTIONS = ['mi', 'km'];
+
+export const REST_TIMER_PRESETS = [30, 60, 90, 120];

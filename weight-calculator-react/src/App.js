@@ -1,22 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import ResultDisplay from './components/ResultDisplay';
-import WorkoutLoggerForm from './components/WorkoutLogger';
-import WorkoutHistory from './components/WorkoutHistory';
+import WorkoutLanding from './components/WorkoutLanding';
+import WeightliftingForm from './components/WeightliftingForm';
+import RunningForm from './components/RunningForm';
+import CyclingForm from './components/CyclingForm';
 import DataManager from './components/DataManager';
-import { UserSelector, UserSwitcher } from './components/UserProfile';
-import { formatWeight, validateWeight, lbsToKg, kgToLbs } from './utils/weightUtils';
-import { 
-  PLATE_WEIGHTS_LBS, 
-  PLATE_WEIGHTS_KG, 
-  BARBELL_OPTIONS, 
-  WEIGHT_INCREMENT_LBS, 
-  WEIGHT_INCREMENT_KG,
-  SWIPE_THRESHOLD,
-  HAPTIC_DURATION 
-} from './utils/constants';
+import { UserSelector, AccountMenu, SettingsModal } from './components/UserProfile';
+import { BARBELL_OPTIONS } from './utils/constants';
 import { dataServiceFactory } from './services/dataServiceFactory';
 import { userService } from './services/userService';
-import ErrorProvider from './context/ErrorContext';
 import { 
   GlobalErrorBoundary, 
   DataServiceErrorBoundary, 
@@ -27,475 +18,235 @@ import ErrorTestComponent from './components/ErrorTest/ErrorTestComponent';
 import './App.css';
 import './components/ErrorBoundary/ErrorBoundary.css';
 
-const WeightCalculator = () => {
-  // Calculator state
-  const [targetWeight, setTargetWeight] = useState(BARBELL_OPTIONS.lbs[0].weight.toString());
-  const [result, setResult] = useState(null);
-  const [previousResult, setPreviousResult] = useState(null);
-  const [showPrevious, setShowPrevious] = useState(false);
-  const [error, setError] = useState('');
-  
-  // UI state
+const WorkoutApp = () => {
+  const [selectedWorkoutType, setSelectedWorkoutType] = useState(null);
+  const [editingWorkout, setEditingWorkout] = useState(null);
+  const [isTransitioningOut, setIsTransitioningOut] = useState(false);
+  const [showDataManager, setShowDataManager] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [themePreference, setThemePreference] = useState('light');
   const [darkMode, setDarkMode] = useState(false);
-  const [touchStart, setTouchStart] = useState(null);
   const [unit, setUnit] = useState('lbs');
+  const [distanceUnit, setDistanceUnit] = useState('mi');
   const [selectedBarbell, setSelectedBarbell] = useState(BARBELL_OPTIONS.lbs[0]);
-  const [activeTab, setActiveTab] = useState('calculator');
-  
-  // Workout state
   const [workoutHistory, setWorkoutHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [workoutForm, setWorkoutForm] = useState({
-    exercise: '',
-    weight: '',
-    sets: '',
-    reps: '',
-    notes: ''
-  });
-  
-  // Data service state
+  const [templates, setTemplates] = useState([]);
   const [dataService, setDataService] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [dataError, setDataError] = useState(null);
-
-  // User state
   const [currentUser, setCurrentUser] = useState(null);
   const [showUserSelector, setShowUserSelector] = useState(false);
   const [userLoading, setUserLoading] = useState(true);
 
-  // Initialize data service for specific user
   const initializeDataService = useCallback(async (userId) => {
     try {
       setIsLoading(true);
       setDataError(null);
-      
-      // Clear existing workout history and form immediately to prevent showing wrong user's data
       setWorkoutHistory([]);
-      setWorkoutForm({
-        exercise: '',
-        weight: '',
-        sets: '',
-        reps: '',
-        notes: ''
-      });
-      setResult(null);
-      setPreviousResult(null);
-      
-      // Initialize or switch data service with user ID
+
       let service;
       if (dataService && dataServiceFactory.getServiceInfo().initialized) {
-        // Switch existing service to new user
         service = await dataServiceFactory.switchUser(userId);
       } else {
-        // Initialize new service
         service = await dataServiceFactory.initialize(null, userId);
       }
       setDataService(service);
-      
-      // Load user preferences
+
       const preferences = await service.getPreferences();
-      setUnit(preferences.unit);
-      setDarkMode(preferences.theme === 'dark');
-      setSelectedBarbell(preferences.defaultBarbell);
-      setTargetWeight(formatWeight(preferences.defaultBarbell.weight, preferences.unit));
-      
-      // Load workout history for new user
-      const history = await service.getWorkoutHistory();
-      console.log(`Loaded ${history.length} workouts for user: ${userId}`);
+      setUnit(preferences.unit || 'lbs');
+      setDistanceUnit(preferences.distanceUnit || 'mi');
+      const theme = preferences.theme || 'light';
+      setThemePreference(theme);
+      if (theme === 'system') {
+        setDarkMode(window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false);
+      } else {
+        setDarkMode(theme === 'dark');
+      }
+      setSelectedBarbell(preferences.defaultBarbell || BARBELL_OPTIONS[preferences.unit || 'lbs'][0]);
+
+      const [history, tmpls] = await Promise.all([
+        service.getWorkoutHistory(),
+        service.getTemplates?.() || Promise.resolve([])
+      ]);
       setWorkoutHistory(history);
-      
+      setTemplates(tmpls || []);
     } catch (error) {
       console.error('Data service initialization failed:', error);
-      setDataError('Failed to load user data. Using default settings.');
-      
-      // Fallback to system preferences
-      const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
-      setDarkMode(prefersDark);
+      setDataError('Failed to load user data.');
+      setThemePreference('system');
+      setDarkMode(window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false);
     } finally {
       setIsLoading(false);
     }
   }, [dataService]);
 
-  // Initialize user service and check for current user
   useEffect(() => {
-    const initializeUser = async () => {
+    const init = async () => {
       try {
         setUserLoading(true);
         setDataError(null);
-        
-        // Check for existing current user
         const existingUser = await userService.getCurrentUser();
-        
-        if (existingUser && existingUser.isActive) {
+        if (existingUser?.isActive) {
           setCurrentUser(existingUser);
           await initializeDataService(existingUser.id);
         } else {
-          // No current user - show user selector
           setShowUserSelector(true);
-          
-          // Check if we have legacy data to migrate
           if (dataServiceFactory.hasLegacyData()) {
             console.log('Legacy data found - will migrate after user selection');
           }
         }
       } catch (error) {
         console.error('User initialization failed:', error);
-        setDataError('Failed to initialize user system. Please refresh the page.');
+        setDataError('Failed to initialize. Please refresh.');
       } finally {
         setUserLoading(false);
       }
     };
-
-    initializeUser();
+    init();
   }, [initializeDataService]);
 
-  // Update document class and save preferences when theme changes
   useEffect(() => {
     document.documentElement.className = darkMode ? 'dark-theme' : 'light-theme';
-    
-    if (dataService) {
-      dataService.getPreferences().then(prefs => {
-        dataService.savePreferences({ ...prefs, theme: darkMode ? 'dark' : 'light' })
-          .catch(error => console.error('Error saving theme preference:', error));
-      });
-    }
-  }, [darkMode, dataService]);
+  }, [darkMode]);
 
-  // Save preferences when unit or barbell changes
+  useEffect(() => {
+    if (themePreference === 'light') setDarkMode(false);
+    else if (themePreference === 'dark') setDarkMode(true);
+    else if (themePreference === 'system') {
+      setDarkMode(window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false);
+    }
+  }, [themePreference]);
+
+  useEffect(() => {
+    if (themePreference === 'system' && dataService) {
+      const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+      if (!media) return;
+      const handler = () => setDarkMode(media.matches);
+      media.addEventListener('change', handler);
+      return () => media.removeEventListener('change', handler);
+    }
+  }, [themePreference, dataService]);
+
   useEffect(() => {
     if (dataService) {
-      dataService.getPreferences().then(prefs => {
-        dataService.savePreferences({ 
-          ...prefs, 
-          unit,
-          defaultBarbell: selectedBarbell
-        }).catch(error => console.error('Error saving preferences:', error));
-      });
+      dataService.getPreferences()
+        .then(prefs => dataService.savePreferences({ ...prefs, theme: themePreference }))
+        .catch(e => console.error(e));
     }
-  }, [unit, selectedBarbell, dataService]);
+  }, [themePreference, dataService]);
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
-
-  const toggleUnit = () => {
-    const newUnit = unit === 'lbs' ? 'kg' : 'lbs';
-    setUnit(newUnit);
-    setSelectedBarbell(BARBELL_OPTIONS[newUnit][0]);
-    
-    // Convert current weight to new unit
-    if (targetWeight) {
-      const currentWeight = parseFloat(targetWeight);
-      if (!isNaN(currentWeight)) {
-        const convertedWeight = newUnit === 'kg' ? lbsToKg(currentWeight) : kgToLbs(currentWeight);
-        setTargetWeight(formatWeight(convertedWeight, newUnit));
-      }
+  const handlePreferenceChange = useCallback(async (prefs) => {
+    if (prefs.unit) setUnit(prefs.unit);
+    if (prefs.distanceUnit) setDistanceUnit(prefs.distanceUnit);
+    if (prefs.defaultBarbell) setSelectedBarbell(prefs.defaultBarbell);
+    if (dataService) {
+      const current = await dataService.getPreferences();
+      await dataService.savePreferences({ ...current, ...prefs }).catch(e => console.error(e));
     }
-    
-    setError('');
-  };
+  }, [dataService]);
 
-  const handleBarbellChange = (barbell) => {
-    setSelectedBarbell(barbell);
-    setTargetWeight(formatWeight(barbell.weight, unit));
-  };
-
-  const incrementWeight = useCallback(() => {
-    const currentWeight = parseFloat(targetWeight) || 0;
-    const increment = unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG;
-    const newWeight = currentWeight + increment;
-    setTargetWeight(formatWeight(newWeight, unit));
-    setError('');
-  }, [targetWeight, unit]);
-
-  const decrementWeight = useCallback(() => {
-    const currentWeight = parseFloat(targetWeight) || 0;
-    const increment = unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG;
-    const newWeight = Math.max(0, currentWeight - increment);
-    setTargetWeight(formatWeight(newWeight, unit));
-    setError('');
-  }, [targetWeight, unit]);
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      if (e.target.tagName === 'INPUT') return; // Don't interfere with input
-      
-      if (e.key === 'ArrowUp' || e.key === 'ArrowRight' || e.key === '+') {
-        e.preventDefault();
-        incrementWeight();
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === '-') {
-        e.preventDefault();
-        decrementWeight();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [incrementWeight, decrementWeight]);
-
-  // Touch/swipe handlers
-  const handleSwipe = useCallback((direction) => {
-    if (direction === 'left') {
-      decrementWeight();
-    } else if (direction === 'right') {
-      incrementWeight();
-    }
-    
-    // Haptic feedback for mobile devices
-    if (navigator.vibrate) {
-      navigator.vibrate(HAPTIC_DURATION);
-    }
-  }, [decrementWeight, incrementWeight]);
-
-  const handleTouchStart = useCallback((e) => {
-    if (e.touches.length === 1) {
-      const touch = e.touches[0];
-      setTouchStart({ x: touch.clientX, y: touch.clientY });
-    }
-  }, []);
-
-  const handleTouchEnd = useCallback((e) => {
-    if (!touchStart || e.changedTouches.length !== 1) {
-      setTouchStart(null);
-      return;
-    }
-    
-    const touch = e.changedTouches[0];
-    const deltaX = touch.clientX - touchStart.x;
-    const deltaY = touch.clientY - touchStart.y;
-    
-    // Only trigger swipe if horizontal movement is greater than vertical
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
-      handleSwipe(deltaX > 0 ? 'right' : 'left');
-    }
-    
-    setTouchStart(null);
-  }, [touchStart, handleSwipe]);
-
-  // Plate calculation function
-  const calculatePlates = useCallback((targetWeight) => {
-    const plateWeights = unit === 'lbs' ? PLATE_WEIGHTS_LBS : PLATE_WEIGHTS_KG;
-    const barbellWeight = selectedBarbell.weight;
-    
-    if (targetWeight < barbellWeight) {
-      return {
-        plateBreakdown: Object.fromEntries(plateWeights.map(w => [w, 0])),
-        actualWeight: barbellWeight,
-        targetWeight: targetWeight,
-        exactMatch: false,
-        totalPlates: 0,
-        barbellWeight: barbellWeight,
-        plateWeight: 0,
-        unit: unit
-      };
-    }
-
-    const plateBreakdown = Object.fromEntries(plateWeights.map(w => [w, 0]));
-    let remainingWeight = targetWeight - barbellWeight;
-
-    // Use more precise arithmetic to avoid floating point errors
-    remainingWeight = Math.round(remainingWeight * 100) / 100;
-
-    for (const plateWeight of plateWeights) {
-      if (remainingWeight >= plateWeight) {
-        const count = Math.floor(remainingWeight / plateWeight);
-        plateBreakdown[plateWeight] = count;
-        remainingWeight -= count * plateWeight;
-        remainingWeight = Math.round(remainingWeight * 100) / 100;
-      }
-    }
-
-    const plateWeight = Object.entries(plateBreakdown).reduce(
-      (sum, [weight, count]) => sum + (parseFloat(weight) * count), 0
-    );
-    const actualWeight = barbellWeight + plateWeight;
-    const exactMatch = Math.abs(actualWeight - targetWeight) < 0.01;
-    const totalPlates = Object.values(plateBreakdown).reduce((sum, count) => sum + count, 0);
-
-    return {
-      plateBreakdown,
-      actualWeight,
-      targetWeight,
-      exactMatch,
-      totalPlates,
-      barbellWeight,
-      plateWeight,
-      unit
-    };
-  }, [unit, selectedBarbell]);
-
-  // Form submission handler
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const validationError = validateWeight(targetWeight, unit);
-    
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setError('');
-    
-    // Store previous result if one exists
-    if (result) {
-      setPreviousResult(result);
-    }
-    
-    const newResult = calculatePlates(parseFloat(targetWeight));
-    setResult(newResult);
-  };
-
-  // Workout form handlers
-  const handleWorkoutSubmit = async (e) => {
-    e.preventDefault();
-    if (!workoutForm.exercise || !workoutForm.sets || !workoutForm.reps || (!workoutForm.weight && !targetWeight)) {
-      return; // Basic validation
-    }
-
-    if (!dataService) {
-      setError('Data service not available');
-      return;
-    }
-
-    if (!currentUser) {
-      setError('No user selected. Please select a user first.');
-      return;
-    }
-
-    try {
-      const newWorkout = {
-        // ID will be generated by DataTransformers.normalizeWorkout
-        date: new Date().toISOString().split('T')[0],
-        exercise: workoutForm.exercise,
-        targetWeight: parseFloat(workoutForm.weight) || parseFloat(targetWeight),
-        actualWeight: parseFloat(workoutForm.weight) || (result ? result.actualWeight : parseFloat(targetWeight)),
-        unit: unit,
-        barbell: selectedBarbell.label,
-        sets: parseInt(workoutForm.sets),
-        reps: parseInt(workoutForm.reps),
-        completed: true,
-        notes: workoutForm.notes,
-        userId: currentUser.id // Add user ID for verification
-      };
-      
-      console.log(`Saving workout for user: ${currentUser.name} (${currentUser.id})`);
-
-      await dataService.saveWorkout(newWorkout);
-      const updatedHistory = await dataService.getWorkoutHistory();
-      setWorkoutHistory(updatedHistory);
-      setWorkoutForm({ exercise: '', weight: '', sets: '', reps: '', notes: '' });
-      setError('');
-    } catch (error) {
-      console.error('Error saving workout:', error);
-      setError('Failed to save workout');
-    }
-  };
-
-  const updateWorkoutForm = (field, value) => {
-    setWorkoutForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  // Increment/decrement functions for workout form
-  const incrementWorkoutField = (field) => {
-    let newValue;
-    
-    if (field === 'weight') {
-      const currentValue = parseFloat(workoutForm[field]) || 0;
-      const increment = unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG;
-      newValue = currentValue + increment;
-      setWorkoutForm(prev => ({ ...prev, [field]: formatWeight(newValue, unit) }));
-    } else {
-      const currentValue = parseInt(workoutForm[field]) || 0;
-      newValue = currentValue + 1;
-      setWorkoutForm(prev => ({ ...prev, [field]: newValue.toString() }));
-    }
-  };
-
-  const decrementWorkoutField = (field) => {
-    let newValue;
-    
-    if (field === 'weight') {
-      const currentValue = parseFloat(workoutForm[field]) || 0;
-      const increment = unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG;
-      newValue = Math.max(0, currentValue - increment);
-      setWorkoutForm(prev => ({ ...prev, [field]: formatWeight(newValue, unit) }));
-    } else {
-      const currentValue = parseInt(workoutForm[field]) || 0;
-      newValue = Math.max(1, currentValue - 1); // Don't go below 1 for sets/reps
-      setWorkoutForm(prev => ({ ...prev, [field]: newValue.toString() }));
-    }
-  };
-
-  // User selection handler
   const handleUserSelect = useCallback(async (user) => {
     try {
       setUserLoading(true);
-      
-      // Set as current user in userService
       await userService.setCurrentUser(user);
       setCurrentUser(user);
-      
-      // Check for legacy data migration
-      const hasLegacy = dataServiceFactory.hasLegacyData();
-      if (hasLegacy) {
-        console.log('Migrating legacy data to user:', user.name);
-        const migrated = await dataServiceFactory.migrateLegacyData(user.id);
-        if (migrated) {
-          console.log('Legacy data migration completed');
-        }
+      if (dataServiceFactory.hasLegacyData()) {
+        await dataServiceFactory.migrateLegacyData(user.id);
       }
-      
-      // Initialize data service for this user
       await initializeDataService(user.id);
-      
       setShowUserSelector(false);
     } catch (error) {
       console.error('Error selecting user:', error);
-      setDataError('Failed to switch user. Please try again.');
+      setDataError('Failed to switch user.');
     } finally {
       setUserLoading(false);
     }
   }, [initializeDataService]);
 
-  // User switching handler
-  const handleSwitchUser = useCallback(() => {
-    setShowUserSelector(true);
+  const refreshData = useCallback(async () => {
+    if (dataService) {
+      const [history, tmpls] = await Promise.all([
+        dataService.getWorkoutHistory(),
+        dataService.getTemplates?.() || Promise.resolve([])
+      ]);
+      setWorkoutHistory(history);
+      setTemplates(tmpls || []);
+    }
+  }, [dataService]);
+
+  const handleWorkoutSave = useCallback(async (workout) => {
+    if (!dataService || !currentUser) return;
+    try {
+      const payload = { ...workout, userId: currentUser.id };
+      if (workout.id) {
+        await dataService.updateWorkout(workout.id, payload);
+      } else {
+        await dataService.saveWorkout(payload);
+      }
+      await refreshData();
+      setSelectedWorkoutType(null);
+      setEditingWorkout(null);
+    } catch (error) {
+      console.error('Error saving workout:', error);
+    }
+  }, [dataService, currentUser, refreshData]);
+
+  const handleWorkoutDelete = useCallback(async (workout) => {
+    if (!dataService) return;
+    try {
+      await dataService.deleteWorkout(workout.id);
+      await refreshData();
+      setEditingWorkout((prev) => (prev?.id === workout.id ? null : prev));
+      setSelectedWorkoutType((prev) => (prev && editingWorkout?.id === workout.id ? null : prev));
+    } catch (error) {
+      console.error('Error deleting workout:', error);
+    }
+  }, [dataService, refreshData, editingWorkout]);
+
+  const handleEditWorkout = useCallback((workout) => {
+    setEditingWorkout(workout);
+    setSelectedWorkoutType(workout.type || 'weightlifting');
   }, []);
 
-  // Close user selector handler
-  const handleCloseUserSelector = useCallback(() => {
-    if (!currentUser) {
-      // If no user is selected, we can't close the selector
-      return;
-    }
-    setShowUserSelector(false);
-  }, [currentUser]);
+  const handleSelectType = useCallback((type) => {
+    setEditingWorkout(null);
+    setSelectedWorkoutType(prev => prev === type ? null : type);
+  }, []);
 
-  // Data change handler for when data is imported/cleared
-  const handleDataChange = async () => {
+  const handleSaveTemplate = useCallback(async (template) => {
+    if (!dataService) return;
+    try {
+      await dataService.saveTemplate({ ...template, type: 'weightlifting' });
+      const tmpls = await dataService.getTemplates();
+      setTemplates(tmpls || []);
+    } catch (error) {
+      console.error('Error saving template:', error);
+    }
+  }, [dataService]);
+
+  const handleDataChange = useCallback(async () => {
     if (dataService && currentUser) {
-      try {
-        const history = await dataService.getWorkoutHistory();
-        setWorkoutHistory(history);
-        const preferences = await dataService.getPreferences();
-        setUnit(preferences.unit);
-        setDarkMode(preferences.theme === 'dark');
-        setSelectedBarbell(preferences.defaultBarbell);
-        setTargetWeight(formatWeight(preferences.defaultBarbell.weight, preferences.unit));
-      } catch (error) {
-        console.error('Error refreshing data after change:', error);
+      const prefs = await dataService.getPreferences();
+      setUnit(prefs.unit || 'lbs');
+      setDistanceUnit(prefs.distanceUnit || 'mi');
+      const theme = prefs.theme || 'light';
+      setThemePreference(theme);
+      if (theme === 'system') {
+        setDarkMode(window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? false);
+      } else {
+        setDarkMode(theme === 'dark');
       }
+      setSelectedBarbell(prefs.defaultBarbell);
+      await refreshData();
     }
-  };
+  }, [dataService, currentUser, refreshData]);
 
-  // Show loading states
   if (userLoading) {
     return (
       <div className="weight-calculator">
         <div className="loading-container">
-          <h2>Loading Weight Calculator...</h2>
-          <p>Initializing user system...</p>
+          <h2>Loading...</h2>
+          <p>Initializing...</p>
         </div>
       </div>
     );
@@ -506,7 +257,48 @@ const WeightCalculator = () => {
       <div className="weight-calculator">
         <div className="loading-container">
           <h2>Loading {currentUser.name}'s Data...</h2>
-          <p>Setting up your workout environment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showDataManager) {
+    return (
+      <div className="weight-calculator">
+        <header className="calculator-header">
+          <div className="header-content">
+            <div className="header-text">
+              <h1>Workout Tracker</h1>
+              <p>Data Manager</p>
+            </div>
+            <div className="header-controls">
+              <AccountMenu
+                currentUser={currentUser}
+                onOpenUserSelector={() => setShowUserSelector(true)}
+                onOpenSettings={() => { setShowDataManager(false); setShowSettings(true); }}
+                onLogOut={async () => {
+                  await userService.clearCurrentUser();
+                  setCurrentUser(null);
+                  setWorkoutHistory([]);
+                  setTemplates([]);
+                  setShowUserSelector(true);
+                  setShowDataManager(false);
+                }}
+              />
+              <button className="unit-toggle" onClick={() => setShowDataManager(false)}>Back</button>
+            </div>
+          </div>
+        </header>
+        <div className="tab-content">
+          <FeatureErrorBoundary featureName="Data Manager">
+            <DataManager onDataChange={handleDataChange} />
+            {process.env.NODE_ENV === 'development' && (
+              <div style={{ marginTop: 20, borderTop: '2px solid var(--border-color)', paddingTop: 20 }}>
+                <h3>Development Tools</h3>
+                <ErrorTestComponent />
+              </div>
+            )}
+          </FeatureErrorBoundary>
         </div>
       </div>
     );
@@ -522,179 +314,137 @@ const WeightCalculator = () => {
       <header className="calculator-header">
         <div className="header-content">
           <div className="header-text">
-            <h1>Gym Plate Calculator</h1>
-            <p>Find the minimum plates needed for your target weight</p>
-            <p>Barbell: {selectedBarbell.label}</p>
-            <p>Available plates: {unit === 'lbs' ? '45, 25, 10, 5, 2.5' : '25, 20, 15, 10, 5, 2.5, 1.25'} {unit}</p>
+            <h1>Workout Tracker</h1>
+            <p>Log weightlifting, running, and cycling</p>
           </div>
           <div className="header-controls">
-            <UserSwitcher 
+            <AccountMenu
               currentUser={currentUser}
-              onSwitchUser={handleSwitchUser}
+              onOpenUserSelector={() => setShowUserSelector(true)}
+              onOpenSettings={() => setShowSettings(true)}
+              onLogOut={async () => {
+                await userService.clearCurrentUser();
+                setCurrentUser(null);
+                setWorkoutHistory([]);
+                setTemplates([]);
+                setShowUserSelector(true);
+              }}
             />
-            <button className="unit-toggle" onClick={toggleUnit} aria-label="Toggle weight unit">
-              {unit.toUpperCase()}
-            </button>
-            <button className="theme-toggle" onClick={toggleDarkMode} aria-label="Toggle dark mode">
-              {darkMode ? '☀️' : '🌙'}
-            </button>
           </div>
         </div>
       </header>
 
-      {/* Tab Navigation */}
-      <div className="tab-navigation">
-        <button 
-          className={`tab-button ${activeTab === 'calculator' ? 'active' : ''}`}
-          onClick={() => setActiveTab('calculator')}
-        >
-          <span className="tab-icon">⚖️</span>
-          <span className="tab-label">Plate Calculator</span>
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'logger' ? 'active' : ''}`}
-          onClick={() => setActiveTab('logger')}
-        >
-          <span className="tab-icon">📝</span>
-          <span className="tab-label">Workout Logger</span>
-        </button>
-        <button 
-          className={`tab-button ${activeTab === 'data' ? 'active' : ''}`}
-          onClick={() => setActiveTab('data')}
-        >
-          <span className="tab-icon">💾</span>
-          <span className="tab-label">Data Manager</span>
-        </button>
-        <div className={`tab-indicator ${activeTab}`}></div>
-      </div>
+      <div className="main-content">
+        <WorkoutLanding
+          workoutHistory={workoutHistory}
+          selectedWorkoutType={selectedWorkoutType}
+          onSelectType={handleSelectType}
+          onEditWorkout={handleEditWorkout}
+          onDeleteWorkout={handleWorkoutDelete}
+        />
 
-      {/* Tab Content */}
-      <div className="tab-content" data-active-tab={activeTab}>
-        {activeTab === 'calculator' && (
-          <FeatureErrorBoundary featureName="Plate Calculator">
-            <div className="calculator-tab">
-              <form onSubmit={handleSubmit} className="calculator-form">
-                <div className="input-group">
-                  <label htmlFor="calculator-barbell-select">
-                    Select Barbell:
-                  </label>
-                  <select 
-                    id="calculator-barbell-select" 
-                    value={selectedBarbell.weight} 
-                    onChange={(e) => handleBarbellChange(BARBELL_OPTIONS[unit].find(b => b.weight === parseFloat(e.target.value)))}
-                    className="barbell-select"
-                  >
-                    {BARBELL_OPTIONS[unit].map(barbell => (
-                      <option key={barbell.weight} value={barbell.weight}>
-                        {barbell.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="input-group">
-                  <label htmlFor="calculator-weight">
-                    Enter desired total weight (including {formatWeight(selectedBarbell.weight, unit)} {unit} barbell):
-                  </label>
-                  <div className="input-with-controls">
-                    <button 
-                      type="button" 
-                      className="increment-btn decrement" 
-                      onClick={decrementWeight}
-                      aria-label={`Decrease weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-                      title={`Decrease by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-                    >
-                      −
-                    </button>
-                    <input
-                      type="text"
-                      id="calculator-weight"
-                      value={targetWeight}
-                      onChange={(e) => setTargetWeight(e.target.value)}
-                      placeholder={unit === 'lbs' ? 'e.g., 135 or 185.5' : 'e.g., 60 or 80.5'}
-                      className={error ? 'error' : ''}
-                      onTouchStart={handleTouchStart}
-                      onTouchEnd={handleTouchEnd}
-                    />
-                    <button 
-                      type="button" 
-                      className="increment-btn increment" 
-                      onClick={incrementWeight}
-                      aria-label={`Increase weight by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-                      title={`Increase by ${unit === 'lbs' ? WEIGHT_INCREMENT_LBS : WEIGHT_INCREMENT_KG} ${unit}`}
-                    >
-                      +
-                    </button>
-                  </div>
-                  {error && <p className="error-message">{error}</p>}
-                </div>
-                <button type="submit" className="calculate-btn">Calculate Plates</button>
-              </form>
-
-              {result && <ResultDisplay result={result} title="Current Result" />}
-
-              {previousResult && (
-                <div className="previous-result">
-                  <button 
-                    className="toggle-previous"
-                    onClick={() => setShowPrevious(!showPrevious)}
-                  >
-                    {showPrevious ? '▼' : '▶'} Previous Result
-                  </button>
-                  
-                  {showPrevious && (
-                    <div className="previous-result-content">
-                      <ResultDisplay result={previousResult} title="Previous Result" />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </FeatureErrorBoundary>
-        )}
-
-        {activeTab === 'logger' && (
-          <FeatureErrorBoundary featureName="Workout Logger">
-            <div className="logger-tab">
-              <WorkoutLoggerForm 
-                workoutForm={workoutForm}
-                onFormSubmit={handleWorkoutSubmit}
-                onFormUpdate={updateWorkoutForm}
-                onIncrementField={incrementWorkoutField}
-                onDecrementField={decrementWorkoutField}
+        {selectedWorkoutType === 'weightlifting' && (
+          <div className={`form-container form-container-enter ${isTransitioningOut ? 'form-container-exit' : ''}`}>
+            <FeatureErrorBoundary featureName="Weightlifting">
+              <WeightliftingForm
+                initialData={editingWorkout}
                 unit={unit}
-                targetWeight={targetWeight}
                 selectedBarbell={selectedBarbell}
+                templates={templates.filter(t => t.type === 'weightlifting')}
+                onSave={handleWorkoutSave}
+                onCancel={() => {
+                  setIsTransitioningOut(true);
+                  setTimeout(() => {
+                    setSelectedWorkoutType(null);
+                    setEditingWorkout(null);
+                    setIsTransitioningOut(false);
+                  }, 300);
+                }}
+                onSaveTemplate={handleSaveTemplate}
+                onPreferenceChange={handlePreferenceChange}
               />
-              <WorkoutHistory 
-                workoutHistory={workoutHistory}
-                showHistory={showHistory}
-                onToggleHistory={() => setShowHistory(!showHistory)}
-              />
-            </div>
-          </FeatureErrorBoundary>
+            </FeatureErrorBoundary>
+          </div>
         )}
 
-        {activeTab === 'data' && (
-          <FeatureErrorBoundary featureName="Data Manager">
-            <div className="data-tab">
-              <DataManager onDataChange={handleDataChange} />
-              {process.env.NODE_ENV === 'development' && (
-                <div style={{ marginTop: '20px', borderTop: '2px solid #ddd', paddingTop: '20px' }}>
-                  <h3>🔧 Development Tools</h3>
-                  <ErrorTestComponent />
-                </div>
-              )}
-            </div>
-          </FeatureErrorBoundary>
+        {selectedWorkoutType === 'running' && (
+          <div className={`form-container form-container-enter ${isTransitioningOut ? 'form-container-exit' : ''}`}>
+            <FeatureErrorBoundary featureName="Running">
+              <RunningForm
+                initialData={editingWorkout}
+                distanceUnit={distanceUnit}
+                onSave={handleWorkoutSave}
+                onCancel={() => {
+                  setIsTransitioningOut(true);
+                  setTimeout(() => {
+                    setSelectedWorkoutType(null);
+                    setEditingWorkout(null);
+                    setIsTransitioningOut(false);
+                  }, 300);
+                }}
+              />
+            </FeatureErrorBoundary>
+          </div>
+        )}
+
+        {selectedWorkoutType === 'cycling' && (
+          <div className={`form-container form-container-enter ${isTransitioningOut ? 'form-container-exit' : ''}`}>
+            <FeatureErrorBoundary featureName="Cycling">
+              <CyclingForm
+                initialData={editingWorkout}
+                distanceUnit={distanceUnit}
+                onSave={handleWorkoutSave}
+                onCancel={() => {
+                  setIsTransitioningOut(true);
+                  setTimeout(() => {
+                    setSelectedWorkoutType(null);
+                    setEditingWorkout(null);
+                    setIsTransitioningOut(false);
+                  }, 300);
+                }}
+              />
+            </FeatureErrorBoundary>
+          </div>
         )}
       </div>
 
-      {/* User Selection Modal */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        unit={unit}
+        distanceUnit={distanceUnit}
+        themePreference={themePreference}
+        selectedBarbell={selectedBarbell}
+        onUnitChange={(newUnit) => {
+          handlePreferenceChange({
+            unit: newUnit,
+            defaultBarbell: BARBELL_OPTIONS[newUnit][0]
+          });
+          setUnit(newUnit);
+          setSelectedBarbell(BARBELL_OPTIONS[newUnit][0]);
+        }}
+        onDistanceUnitChange={(newUnit) => {
+          handlePreferenceChange({ distanceUnit: newUnit });
+          setDistanceUnit(newUnit);
+        }}
+        onThemeChange={(theme) => {
+          setThemePreference(theme);
+        }}
+        onBarbellChange={(barbell) => {
+          handlePreferenceChange({ defaultBarbell: barbell });
+          setSelectedBarbell(barbell);
+        }}
+        onOpenDataManager={() => {
+          setShowSettings(false);
+          setShowDataManager(true);
+        }}
+      />
+
       {showUserSelector && (
         <UserSelectorErrorBoundary>
           <UserSelector
             onUserSelect={handleUserSelect}
-            onClose={handleCloseUserSelector}
+            onClose={() => currentUser && setShowUserSelector(false)}
             currentUser={currentUser}
           />
         </UserSelectorErrorBoundary>
@@ -706,19 +456,16 @@ const WeightCalculator = () => {
 function App() {
   const handleGlobalError = (error, errorInfo, errorId) => {
     console.error('Global error caught:', { error, errorInfo, errorId });
-    // Here you could send to external error reporting service
   };
 
   return (
-    <ErrorProvider>
-      <GlobalErrorBoundary onError={handleGlobalError}>
-        <DataServiceErrorBoundary>
-          <div className="App">
-            <WeightCalculator />
-          </div>
-        </DataServiceErrorBoundary>
-      </GlobalErrorBoundary>
-    </ErrorProvider>
+    <GlobalErrorBoundary onError={handleGlobalError}>
+      <DataServiceErrorBoundary>
+        <div className="App">
+          <WorkoutApp />
+        </div>
+      </DataServiceErrorBoundary>
+    </GlobalErrorBoundary>
   );
 }
 
